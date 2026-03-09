@@ -24,6 +24,8 @@ import sys
 import json
 import asyncio
 import logging
+from dotenv import load_dotenv
+load_dotenv('E:/medlens/.env')
 from pathlib import Path
 
 from tqdm import tqdm
