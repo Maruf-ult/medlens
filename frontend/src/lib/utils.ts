@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]): string {
 
 export function getUrgencyColor(score: number): string {
   if (score <= 3) {
-    return "text-success-600:text-success-500";
+    return "text-success-600 dark:text-success-500";
   } else if (score <= 6) {
     return "text-warning-600 dark:text-warning-500";
   } else {
@@ -89,6 +89,13 @@ export function formatDate(date:Date):string{
           minute:"2-digit",
           hour12:true,
      }).format(date);
+}
+export function formatTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
 }
 
 export function truncateText(text:string,maxLength:number):string{
