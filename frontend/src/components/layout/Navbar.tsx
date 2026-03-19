@@ -1,17 +1,18 @@
-"use client"
+"use client";
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
-import { useUser, SignUpButton, UserButton } from "@clerk/nextjs"
-import Button from "../ui/Button"
+import { useUser, SignUpButton, SignInButton, UserButton } from "@clerk/nextjs"
 
+// Updated with professional naming and corresponding section IDs
 const navLinks = [
-  { href: "/", label: "Home", icon: "🏠" },
-  { href: "/analyze", label: "Analyze", icon: "🔬" },
-  { href: "/chat", label: "Q&A Chat", icon: "💬" },
-  { href: "/dashboard", label: "Dashboard", icon: "📊" },
+  { href: "/", label: "Home" },
+  { href: "#capabilities", label: "Capabilities" },
+  { href: "#clinical-engine", label: "Clinical Engine" },
+  { href: "#methodology", label: "Methodology" },
+  { href: "/dashboard", label: "Dashboard" },
 ];
 
 function ThemeToggle() {
@@ -94,14 +95,14 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Desktop Nav - Centered Links */}
+          <nav className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
                   pathname === link.href ? "bg-primary-50 text-primary-700" : "text-surface-600 hover:bg-surface-100 dark:text-surface-400"
                 )}
               >
@@ -114,15 +115,22 @@ export default function Navbar() {
             <ThemeToggle />
 
             {isLoaded && (
-              <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 {isSignedIn ? (
                   <UserButton />
                 ) : (
-                  <SignUpButton mode="modal">
-                    <button className="bg-[#6c47ff] text-white rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-6 cursor-pointer hover:opacity-90 active:scale-95 transition-all">
-                      Get Started
-                    </button>
-                  </SignUpButton>
+                  <>
+                    <SignInButton mode="modal">
+                      <button className="text-sm font-semibold text-surface-600 dark:text-surface-400 hover:text-primary-500 px-3 cursor-pointer transition-colors">
+                        Sign In
+                      </button>
+                    </SignInButton>
+                    <SignUpButton mode="modal">
+                      <button className="bg-primary-500 text-white rounded-lg font-semibold text-sm h-10 px-5 cursor-pointer hover:bg-primary-600 active:scale-95 transition-all">
+                        Sign Up
+                      </button>
+                    </SignUpButton>
+                  </>
                 )}
               </div>
             )}

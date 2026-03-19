@@ -344,8 +344,8 @@ export default function DashboardPage() {
             {/* Quick Actions */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { icon: "🔬", title: "Analyze Report", desc: "AI analysis of medical reports", href: "/analyze", variant: "primary" as const },
-                { icon: "💬", title: "Ask Question", desc: "Plain language medical Q&A", href: "/chat", variant: "secondary" as const },
+                { icon: "🔬", title: "Analyze Report", desc: "AI analysis of medical reports", href: "/sign-up", variant: "primary" as const },
+                { icon: "💬", title: "Ask Question", desc: "Plain language medical Q&A", href: "/sign-up", variant: "secondary" as const },
                 { icon: "📖", title: "API Docs", desc: "Explore FastAPI endpoints", href: "http://localhost:8000/docs", variant: "outline" as const },
               ].map((action) => (
                 <div key={action.title} className="p-6 rounded-2xl border bg-white dark:bg-surface-800 border-surface-200 dark:border-surface-700 flex flex-col gap-4 shadow-sm">
@@ -354,7 +354,7 @@ export default function DashboardPage() {
                     <h3 className="font-semibold text-surface-900 dark:text-surface-100 mb-1">{action.title}</h3>
                     <p className="text-sm text-surface-500 dark:text-surface-400">{action.desc}</p>
                   </div>
-                  <Button variant={action.variant} size="sm" fullWidth asChild>
+                  <Button variant={action.variant} size="sm" fullWidth >
                     <Link href={action.href} target={action.href.startsWith("http") ? "_blank" : undefined}>
                       {action.title} &#8594;
                     </Link>
