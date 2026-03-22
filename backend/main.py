@@ -19,6 +19,7 @@ from backend.analyzer import MedicalAnalyzer
 from backend.ocr import OCRPipeline
 from backend.qa_engine import QAEngine
 from backend.database import Database
+from backend.chat_routes import router as chat_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("medlens")
@@ -52,6 +53,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(chat_router);
 
 
 class TextAnalysisRequest(BaseModel):
