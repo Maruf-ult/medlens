@@ -75,3 +75,36 @@ export interface NavItem{
      icon?:string;
      badge?:string;
 }
+
+export interface ConversationRecord {
+  id: string;
+  title: string;
+  created_at: string;
+  message_count: number;
+}
+
+export interface MessageRecord {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+
+export interface AnalysisRecord {
+  id: string;
+  title: string;
+  overall_status: string;
+  urgency_score: number;
+  summary: string;
+  created_at: string;
+  phi_detected: boolean;
+}
+
+export interface AnalysisDetailRecord extends AnalysisRecord {
+  report_text: string;
+  findings: AnalysisResult["findings"];
+  doctor_questions: string[];
+  dataset_context: string;
+  processing_time_ms: number;
+}

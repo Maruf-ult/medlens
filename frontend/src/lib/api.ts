@@ -1,4 +1,4 @@
-import type { AnalysisResult,AnalyzeRequest,QARequest,QAResponse,DatasetStatus,HealthCheck } from "@/types";
+import type { AnalysisResult,AnalyzeRequest,QARequest,QAResponse,DatasetStatus,HealthCheck,ConversationRecord,MessageRecord,AnalysisRecord,AnalysisDetailRecord } from "@/types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000";
 
@@ -95,4 +95,57 @@ export async function isBackendOnline():Promise<boolean>{
      }catch{
        return false;
      }
+}
+
+export async function getConversations(userId: string): Promise<ConversationRecord[]> {
+  return apiRequest<ConversationRecord[]>(`/chat/conversations/${userId}`);
+}
+
+export async function createConversationDB(data: { id: string; user_id: string; title: string }): Promise<void> {
+  return apiRequest("/chat/conversations", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateConversationTitle(convId: string, title: string): Promise<void> {
+  return apiRequest(`/chat/conversations/${convId}`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export async function deleteConversationDB(convId: string): Promise<void> {
+  return apiRequest(`/chat/conversations/${convId}`, { method: "DELETE" });
+}
+
+export async function getMessages(convId: string): Promise<MessageRecord[]> {
+  return apiRequest<MessageRecord[]>(`/chat/conversations/${convId}/messages`);
+}
+
+export async function saveMessageDB(data: { id: string; conversation_id: string; role: string; content: string; timestamp: string }): Promise<void> {
+  return apiRequest("/chat/messages", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getAnalysisHistory(userId: string): Promise<AnalysisRecord[]> {
+  return apiRequest<AnalysisRecord[]>(`/chat/analysis/${userId}`);
+}
+
+export async function getAnalysisDetail(userId: string, analysisId: string): Promise<AnalysisDetailRecord> {
+  return apiRequest<AnalysisDetailRecord>(`/chat/analysis/${userId}/${analysisId}`);
+}
+
+export async function saveAnalysisDB(data: {
+  id: string;
+  user_id: string;
+  title: string;
+  report_text?: string;
+  overall_status?: string;
+  urgency_score?: number;
+  summary?: string;
+  findings?: AnalysisResult["findings"];
+  doctor_questions?: string[];
+  dataset_context?: string;
+  processing_time_ms?: number;
+  phi_detected?: boolean;
+}): Promise<void> {
+  return apiRequest("/chat/analysis", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function deleteAnalysisDB(analysisId: string): Promise<void> {
+  return apiRequest(`/chat/analysis/${analysisId}`, { method: "DELETE" });
 }

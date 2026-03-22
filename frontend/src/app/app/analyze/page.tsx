@@ -13,6 +13,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   RadialBarChart, RadialBar, Legend,
 } from "recharts";
+import { useUser } from "@clerk/nextjs";
+import { saveAnalysisDB } from "@/lib/api";
+import { generateId } from "@/lib/utils";
 
 const SAMPLE_REPORT = `LABORATORY REPORT
 Patient: [REDACTED]
@@ -225,6 +228,7 @@ export default function AnalyzePage() {
   const [result, setResult]           = useState<AnalysisResult | null>(null);
   const [error, setError]             = useState<string | null>(null);
   const [activeTab, setActiveTab]     = useState<"summary" | "charts" | "findings" | "questions">("summary");
+  const { user } = useUser();
 
   const handleAnalyze = async () => {
     setError(null);
@@ -244,7 +248,25 @@ export default function AnalyzePage() {
         }
         data = await analyzeText({ text: reportText, mode: analysisMode });
       }
-      setResult(data);
+setResult(data);
+
+if (user?.id) {
+  const title = data.summary.slice(0, 50) + "...";
+  saveAnalysisDB({
+    id: generateId(),
+    user_id: user.id,
+    title,
+    report_text: reportText,
+    overall_status: data.overall_status,
+    urgency_score: data.urgency_score,
+    summary: data.summary,
+    findings: data.findings,
+    doctor_questions: data.doctor_questions,
+    dataset_context: data.dataset_context_used,
+    processing_time_ms: data.processing_time_ms,
+    phi_detected: data.phi_detected,
+  }).catch(console.error);
+}
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
