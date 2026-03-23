@@ -16,6 +16,7 @@ import {
 import { useUser } from "@clerk/nextjs";
 import { saveAnalysisDB } from "@/lib/api";
 import { generateId } from "@/lib/utils";
+import { useAnalysisStore } from "@/store/useAnalysisStore";
 
 const SAMPLE_REPORT = `LABORATORY REPORT
 Patient: [REDACTED]
@@ -220,14 +221,22 @@ function SeverityRadialChart({ result }: { result: AnalysisResult }) {
 }
 
 export default function AnalyzePage() {
+  const {
+    currentResult: result,
+    currentText: reportText,
+    currentMode: analysisMode,
+    activeTab,
+    setResult,
+    setText: setReportText,
+    setMode: setAnalysisMode,
+    setActiveTab,
+    clearAll,
+  } = useAnalysisStore();
+
   const [mode, setMode]               = useState<"text" | "file">("text");
-  const [reportText, setReportText]   = useState("");
-  const [analysisMode, setAnalysisMode] = useState<AnalyzeRequest["mode"]>("full");
   const [file, setFile]               = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult]           = useState<AnalysisResult | null>(null);
   const [error, setError]             = useState<string | null>(null);
-  const [activeTab, setActiveTab]     = useState<"summary" | "charts" | "findings" | "questions">("summary");
   const { user } = useUser();
 
   const handleAnalyze = async () => {
@@ -248,25 +257,25 @@ export default function AnalyzePage() {
         }
         data = await analyzeText({ text: reportText, mode: analysisMode });
       }
-setResult(data);
+      setResult(data);
 
-if (user?.id) {
-  const title = data.summary.slice(0, 50) + "...";
-  saveAnalysisDB({
-    id: generateId(),
-    user_id: user.id,
-    title,
-    report_text: reportText,
-    overall_status: data.overall_status,
-    urgency_score: data.urgency_score,
-    summary: data.summary,
-    findings: data.findings,
-    doctor_questions: data.doctor_questions,
-    dataset_context: data.dataset_context_used,
-    processing_time_ms: data.processing_time_ms,
-    phi_detected: data.phi_detected,
-  }).catch(console.error);
-}
+      if (user?.id) {
+        const title = data.summary.slice(0, 50) + "...";
+        saveAnalysisDB({
+          id: generateId(),
+          user_id: user.id,
+          title,
+          report_text: reportText,
+          overall_status: data.overall_status,
+          urgency_score: data.urgency_score,
+          summary: data.summary,
+          findings: data.findings,
+          doctor_questions: data.doctor_questions,
+          dataset_context: data.dataset_context_used,
+          processing_time_ms: data.processing_time_ms,
+          phi_detected: data.phi_detected,
+        }).catch(console.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -284,6 +293,7 @@ if (user?.id) {
     setFile(null);
     setResult(null);
     setError(null);
+    clearAll();
   };
 
   return (
@@ -426,11 +436,11 @@ if (user?.id) {
                     {[
                       { key: "full",      label: "Full Analysis",  desc: "Complete breakdown" },
                       { key: "redflags",  label: "Red Flags",      desc: "Abnormal only"      },
-                      { key: "layman",    label: "Plain Language", desc: "Simple terms"       },
+                      { key: "layman",    label: "Plain Language", desc: "Simple terms"        },
                     ].map((m) => (
                       <button
                         key={m.key}
-                        onClick={() => setAnalysisMode(m.key as AnalyzeRequest["mode"])}
+                        onClick={() => setAnalysisMode(m.key as "full" | "redflags" | "layman")}
                         className={cn(
                           "p-3 rounded-xl border text-left transition-all duration-150",
                           analysisMode === m.key
@@ -487,7 +497,7 @@ if (user?.id) {
                   ].map((tab) => (
                     <button
                       key={tab.key}
-                      onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                      onClick={() => setActiveTab(tab.key as "summary" | "charts" | "findings" | "questions")}
                       className={cn(
                         "flex-1 py-3 text-xs sm:text-sm font-medium transition-colors duration-150",
                         activeTab === tab.key
@@ -601,7 +611,7 @@ if (user?.id) {
                       {/* Summary stats */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {[
-                          { label: "Total Findings",  value: result.findings.length,                                                  color: "text-primary-500"  },
+                          { label: "Total Findings",  value: result.findings.length,                                          color: "text-primary-500"  },
                           { label: "Normal",          value: result.findings.filter(f => f.severity === "normal").length,   color: "text-success-500"  },
                           { label: "Attention",       value: result.findings.filter(f => f.severity === "warning").length,  color: "text-warning-500"  },
                           { label: "Critical",        value: result.findings.filter(f => f.severity === "critical").length, color: "text-danger-500"   },
@@ -622,7 +632,7 @@ if (user?.id) {
                   {/* FINDINGS TAB */}
                   {activeTab === "findings" && (
                     <div className="space-y-3">
-                      {result.findings.map((finding, index) => (
+                      {Array.isArray(result.findings) && result.findings.map((finding, index) => (
                         <div
                           key={index}
                           className={cn("p-5 rounded-xl border", getSeverityClasses(finding.severity))}
