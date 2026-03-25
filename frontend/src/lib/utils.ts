@@ -37,13 +37,14 @@ export function getUrgencyLabel(score: number): string {
 export function getSeverityClasses(severity: Finding["severity"]): string {
   switch (severity) {
     case "normal":
-      return "severity-normal border";
+      // Keeps your design but adds a dark-compatible background and border
+      return "severity-normal border dark:bg-success-950/20 dark:border-success-900/50 dark:text-success-400";
     case "warning":
-      return "severity-warning border";
+      return "severity-warning border dark:bg-warning-950/20 dark:border-warning-900/50 dark:text-warning-400";
     case "critical":
-      return "severity-critical border";
+      return "severity-critical border dark:bg-danger-950/20 dark:border-danger-900/50 dark:text-danger-400";
     default:
-      return "bg-surface-50 border border-surface-200";
+      return "bg-surface-50 border border-surface-200 dark:bg-surface-900 dark:border-surface-700";
   }
 }
 

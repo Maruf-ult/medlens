@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { analyzeText, analyzeFile } from "@/lib/api";
-import type { AnalysisResult, AnalyzeRequest } from "@/types";
+import type { AnalysisResult } from "@/types";
 import { cn, formatProcessingTime, getSeverityClasses, getSeverityIcon } from "@/lib/utils";
 import Button from "@/components/ui/Button";
 import { Alert, MedicalDisclaimerAlert, PHIDetectedAlert } from "@/components/ui/ErrorAlert";
@@ -41,6 +41,8 @@ const SEVERITY_COLORS = {
   warning:  "#f59e0b",
   critical: "#ef4444",
 };
+
+// --- Sub-components for Charts ---
 
 function UrgencyGauge({ score }: { score: number }) {
   const color = score <= 3 ? "#22c55e" : score <= 6 ? "#f59e0b" : "#ef4444";
@@ -220,6 +222,8 @@ function SeverityRadialChart({ result }: { result: AnalysisResult }) {
   );
 }
 
+// --- Main Page Component ---
+
 export default function AnalyzePage() {
   const {
     currentResult: result,
@@ -233,7 +237,7 @@ export default function AnalyzePage() {
     clearAll,
   } = useAnalysisStore();
 
-  const [mode, setMode]               = useState<"text" | "file">("text");
+  const [inputMode, setInputMode]     = useState<"text" | "file">("text");
   const [file, setFile]               = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError]             = useState<string | null>(null);
@@ -247,25 +251,29 @@ export default function AnalyzePage() {
 
     try {
       let data: AnalysisResult;
-      if (mode === "file" && file) {
+      let textToAnalyze = reportText;
+
+      if (inputMode === "file" && file) {
         data = await analyzeFile(file);
+        // If file analysis returns text, sync it to store for history
+        if (data.raw_text) setReportText(data.raw_text);
       } else {
         if (!reportText.trim() || reportText.trim().length < 20) {
-          setError("Please enter at least 20 characters of medical report text.");
-          setIsAnalyzing(false);
-          return;
+          throw new Error("Please enter at least 20 characters of medical report text.");
         }
         data = await analyzeText({ text: reportText, mode: analysisMode });
       }
+      
       setResult(data);
 
+      // Save to Database if user is logged in
       if (user?.id) {
-        const title = data.summary.slice(0, 50) + "...";
-        saveAnalysisDB({
+        const title = data.findings?.[0]?.title || data.summary.slice(0, 47) + "...";
+        await saveAnalysisDB({
           id: generateId(),
           user_id: user.id,
           title,
-          report_text: reportText,
+          report_text: textToAnalyze || "File Upload Analysis",
           overall_status: data.overall_status,
           urgency_score: data.urgency_score,
           summary: data.summary,
@@ -274,7 +282,7 @@ export default function AnalyzePage() {
           dataset_context: data.dataset_context_used,
           processing_time_ms: data.processing_time_ms,
           phi_detected: data.phi_detected,
-        }).catch(console.error);
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -285,7 +293,14 @@ export default function AnalyzePage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected) setFile(selected);
+    if (selected) {
+      if (selected.size > 10 * 1024 * 1024) {
+        setError("File size exceeds 10MB limit.");
+        return;
+      }
+      setFile(selected);
+      setError(null);
+    }
   };
 
   const handleClear = () => {
@@ -322,10 +337,10 @@ export default function AnalyzePage() {
               ].map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setMode(tab.key as "text" | "file")}
+                  onClick={() => setInputMode(tab.key as "text" | "file")}
                   className={cn(
                     "flex-1 py-4 text-sm font-medium transition-colors duration-150",
-                    mode === tab.key
+                    inputMode === tab.key
                       ? "bg-white dark:bg-surface-800 text-primary-600 dark:text-primary-400 border-b-2 border-primary-500"
                       : "bg-surface-50 dark:bg-surface-900 text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-300"
                   )}
@@ -336,7 +351,7 @@ export default function AnalyzePage() {
             </div>
 
             <div className="p-6 space-y-5">
-              {mode === "text" && (
+              {inputMode === "text" && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
@@ -376,7 +391,7 @@ export default function AnalyzePage() {
                 </div>
               )}
 
-              {mode === "file" && (
+              {inputMode === "file" && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
                     Upload Medical Document
@@ -427,7 +442,7 @@ export default function AnalyzePage() {
                 </div>
               )}
 
-              {mode === "text" && (
+              {inputMode === "text" && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
                     Analysis Mode
@@ -464,7 +479,7 @@ export default function AnalyzePage() {
                 <Button
                   onClick={handleAnalyze}
                   isLoading={isAnalyzing}
-                  disabled={mode === "text" ? !reportText.trim() : !file}
+                  disabled={inputMode === "text" ? !reportText.trim() : !file}
                   fullWidth
                   size="lg"
                 >
