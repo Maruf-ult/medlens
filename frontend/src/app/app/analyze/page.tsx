@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { analyzeText, analyzeFile } from "@/lib/api";
 import type { AnalysisResult } from "@/types";
 import { cn, formatProcessingTime, getSeverityClasses, getSeverityIcon } from "@/lib/utils";
@@ -132,7 +132,7 @@ function FindingsBarChart({ result }: { result: AnalysisResult }) {
   const data = result.findings.map((f) => ({
     name:  f.title.length > 12 ? f.title.slice(0, 12) + "..." : f.title,
     value: f.severity === "normal" ? 1 : f.severity === "warning" ? 2 : 3,
-    fill:  SEVERITY_COLORS[f.severity],
+    fill:  SEVERITY_COLORS[f.severity as keyof typeof SEVERITY_COLORS],
     full:  f.title,
   }));
 
@@ -200,7 +200,7 @@ function SeverityRadialChart({ result }: { result: AnalysisResult }) {
         startAngle={180}
         endAngle={-180}
       >
-        <RadialBar dataKey="value" cornerRadius={4} />
+        <RadialBar dataKey="value" cornerRadius={4} background />
         <Legend
           iconType="circle"
           iconSize={8}
@@ -243,20 +243,35 @@ export default function AnalyzePage() {
   const [error, setError]             = useState<string | null>(null);
   const { user } = useUser();
 
+  // Create ref for the results section
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Helper to scroll to results
+  const scrollToResults = () => {
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+
   const handleAnalyze = async () => {
     setError(null);
     setResult(null);
     setIsAnalyzing(true);
     setActiveTab("summary");
 
+    // Scroll down to show the loader/skeleton immediately
+    scrollToResults();
+
     try {
       let data: AnalysisResult;
-      let textToAnalyze = reportText;
+      let textToSave = reportText;
 
       if (inputMode === "file" && file) {
         data = await analyzeFile(file);
-        // If file analysis returns text, sync it to store for history
-        if (data.raw_text) setReportText(data.raw_text);
+        if (data.raw_text) {
+            setReportText(data.raw_text);
+            textToSave = data.raw_text;
+        }
       } else {
         if (!reportText.trim() || reportText.trim().length < 20) {
           throw new Error("Please enter at least 20 characters of medical report text.");
@@ -266,14 +281,16 @@ export default function AnalyzePage() {
       
       setResult(data);
 
-      // Save to Database if user is logged in
+      // Scroll again once results are in to focus on findings
+      scrollToResults();
+
       if (user?.id) {
         const title = data.findings?.[0]?.title || data.summary.slice(0, 47) + "...";
         await saveAnalysisDB({
           id: generateId(),
           user_id: user.id,
           title,
-          report_text: textToAnalyze || "File Upload Analysis",
+          report_text: textToSave || "File Upload Analysis",
           overall_status: data.overall_status,
           urgency_score: data.urgency_score,
           summary: data.summary,
@@ -494,217 +511,163 @@ export default function AnalyzePage() {
             </div>
           </div>
 
-          {isAnalyzing && <SkeletonAnalysis />}
+          {/* Results Ref Area */}
+          <div ref={resultsRef} className="scroll-mt-10">
+            {isAnalyzing && <SkeletonAnalysis />}
 
-          {result && !isAnalyzing && (
-            <div className="space-y-4 animate-fade-in">
+            {result && !isAnalyzing && (
+              <div className="space-y-4 animate-fade-in">
 
-              {result.phi_detected && <PHIDetectedAlert />}
+                {result.phi_detected && <PHIDetectedAlert />}
 
-              {/* Result tabs */}
-              <div className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-sm overflow-hidden">
-                <div className="flex border-b border-surface-200 dark:border-surface-700">
-                  {[
-                    { key: "summary",   label: "📋 Summary"    },
-                    { key: "charts",    label: "📊 Charts"     },
-                    { key: "findings",  label: `🔍 Findings (${result.findings.length})` },
-                    { key: "questions", label: "💬 Questions"  },
-                  ].map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key as "summary" | "charts" | "findings" | "questions")}
-                      className={cn(
-                        "flex-1 py-3 text-xs sm:text-sm font-medium transition-colors duration-150",
-                        activeTab === tab.key
-                          ? "bg-white dark:bg-surface-800 text-primary-600 dark:text-primary-400 border-b-2 border-primary-500"
-                          : "bg-surface-50 dark:bg-surface-900 text-surface-500 hover:text-surface-700 dark:text-surface-400"
-                      )}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
+                <div className="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-sm overflow-hidden">
+                  <div className="flex border-b border-surface-200 dark:border-surface-700">
+                    {[
+                      { key: "summary",   label: "📋 Summary"    },
+                      { key: "charts",    label: "📊 Charts"     },
+                      { key: "findings",  label: `🔍 Findings (${result.findings.length})` },
+                      { key: "questions", label: "💬 Questions"  },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key as "summary" | "charts" | "findings" | "questions")}
+                        className={cn(
+                          "flex-1 py-3 text-xs sm:text-sm font-medium transition-colors duration-150",
+                          activeTab === tab.key
+                            ? "bg-white dark:bg-surface-800 text-primary-600 dark:text-primary-400 border-b-2 border-primary-500"
+                            : "bg-surface-50 dark:bg-surface-900 text-surface-500 hover:text-surface-700 dark:text-surface-400"
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
 
-                <div className="p-6">
-
-                  {/* SUMMARY TAB */}
-                  {activeTab === "summary" && (
-                    <div className="space-y-5">
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                          <h2 className="text-xl font-bold text-surface-900 dark:text-surface-100">
-                            Analysis Summary
-                          </h2>
-                          <p className="text-sm text-surface-400 mt-1">
-                            Processed in {formatProcessingTime(result.processing_time_ms)}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <UrgencyBadge score={result.urgency_score} size="lg" />
-                          {result.dataset_context_used && (
-                            <DatasetBadge source={result.dataset_context_used} />
-                          )}
-                        </div>
-                      </div>
-
-                      <p className="text-surface-600 dark:text-surface-300 leading-relaxed">
-                        {result.summary}
-                      </p>
-
-                      <div className="flex flex-wrap gap-4 pt-4 border-t border-surface-100 dark:border-surface-700">
-                        {[
-                          { label: "Normal",    count: result.findings.filter(f => f.severity === "normal").length,   color: "text-success-600 dark:text-success-400",  bg: "bg-success-50 dark:bg-success-950"  },
-                          { label: "Attention", count: result.findings.filter(f => f.severity === "warning").length,  color: "text-warning-600 dark:text-warning-400",  bg: "bg-warning-50 dark:bg-warning-950"  },
-                          { label: "Critical",  count: result.findings.filter(f => f.severity === "critical").length, color: "text-danger-600 dark:text-danger-400",    bg: "bg-danger-50 dark:bg-danger-950"    },
-                        ].map((s) => (
-                          <div key={s.label} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl", s.bg)}>
-                            <span className={cn("text-2xl font-bold", s.color)}>{s.count}</span>
-                            <span className={cn("text-sm font-medium", s.color)}>{s.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* CHARTS TAB */}
-                  {activeTab === "charts" && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                        {/* Urgency gauge */}
-                        <div className={cn(
-                          "p-5 rounded-xl border text-center",
-                          "bg-surface-50 dark:bg-surface-900",
-                          "border-surface-200 dark:border-surface-700"
-                        )}>
-                          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                            Urgency Score
-                          </h3>
-                          <UrgencyGauge score={result.urgency_score} />
-                          <p className="text-xs text-surface-400 mt-2">
-                            {result.urgency_score <= 3 ? "All Normal" : result.urgency_score <= 6 ? "Attention Needed" : "Urgent Review"}
-                          </p>
-                        </div>
-
-                        {/* Donut chart */}
-                        <div className={cn(
-                          "p-5 rounded-xl border",
-                          "bg-surface-50 dark:bg-surface-900",
-                          "border-surface-200 dark:border-surface-700"
-                        )}>
-                          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                            Findings Breakdown
-                          </h3>
-                          <FindingsDonut result={result} />
-                        </div>
-
-                        {/* Radial chart */}
-                        <div className={cn(
-                          "p-5 rounded-xl border",
-                          "bg-surface-50 dark:bg-surface-900",
-                          "border-surface-200 dark:border-surface-700"
-                        )}>
-                          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                            Severity Distribution
-                          </h3>
-                          <SeverityRadialChart result={result} />
-                        </div>
-                      </div>
-
-                      {/* Bar chart */}
-                      <div className={cn(
-                        "p-5 rounded-xl border",
-                        "bg-surface-50 dark:bg-surface-900",
-                        "border-surface-200 dark:border-surface-700"
-                      )}>
-                        <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-4">
-                          Individual Findings Severity
-                        </h3>
-                        <FindingsBarChart result={result} />
-                      </div>
-
-                      {/* Summary stats */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {[
-                          { label: "Total Findings",  value: result.findings.length,                                          color: "text-primary-500"  },
-                          { label: "Normal",          value: result.findings.filter(f => f.severity === "normal").length,   color: "text-success-500"  },
-                          { label: "Attention",       value: result.findings.filter(f => f.severity === "warning").length,  color: "text-warning-500"  },
-                          { label: "Critical",        value: result.findings.filter(f => f.severity === "critical").length, color: "text-danger-500"   },
-                        ].map((stat) => (
-                          <div key={stat.label} className={cn(
-                            "p-4 rounded-xl text-center",
-                            "bg-surface-50 dark:bg-surface-900",
-                            "border border-surface-200 dark:border-surface-700"
-                          )}>
-                            <p className={cn("text-3xl font-bold", stat.color)}>{stat.value}</p>
-                            <p className="text-xs text-surface-400 mt-1">{stat.label}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FINDINGS TAB */}
-                  {activeTab === "findings" && (
-                    <div className="space-y-3">
-                      {Array.isArray(result.findings) && result.findings.map((finding, index) => (
-                        <div
-                          key={index}
-                          className={cn("p-5 rounded-xl border", getSeverityClasses(finding.severity))}
-                        >
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="flex items-center gap-2">
-                              <span>{getSeverityIcon(finding.severity)}</span>
-                              <h4 className="font-semibold">{finding.title}</h4>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {finding.value && (
-                                <span className="text-sm font-bold">{finding.value}</span>
-                              )}
-                              <SeverityBadge severity={finding.severity} size="sm" />
-                            </div>
-                          </div>
-                          <p className="text-sm leading-relaxed opacity-90">{finding.detail}</p>
-                          {finding.reference_range && (
-                            <p className="text-xs opacity-60 mt-2">
-                              Reference range: {finding.reference_range}
+                  <div className="p-6">
+                    {/* SUMMARY TAB */}
+                    {activeTab === "summary" && (
+                      <div className="space-y-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <h2 className="text-xl font-bold text-surface-900 dark:text-surface-100">
+                              Analysis Summary
+                            </h2>
+                            <p className="text-sm text-surface-400 mt-1">
+                              Processed in {formatProcessingTime(result.processing_time_ms)}
                             </p>
-                          )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <UrgencyBadge score={result.urgency_score} size="lg" />
+                            {result.dataset_context_used && (
+                              <DatasetBadge source={result.dataset_context_used} />
+                            )}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
 
-                  {/* QUESTIONS TAB */}
-                  {activeTab === "questions" && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-surface-500 dark:text-surface-400 mb-4">
-                        Based on your results, here are important questions to ask your doctor at your next appointment.
-                      </p>
-                      {result.doctor_questions.map((question, index) => (
-                        <div
-                          key={index}
-                          className={cn(
-                            "flex gap-4 p-4 rounded-xl",
-                            "bg-surface-50 dark:bg-surface-900",
-                            "border border-surface-200 dark:border-surface-700"
-                          )}
-                        >
-                          <span className="shrink-0 w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-400 text-xs font-bold flex items-center justify-center">
-                            {index + 1}
-                          </span>
-                          <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed">
-                            {question}
-                          </p>
+                        <p className="text-surface-600 dark:text-surface-300 leading-relaxed">
+                          {result.summary}
+                        </p>
+
+                        <div className="flex flex-wrap gap-4 pt-4 border-t border-surface-100 dark:border-surface-700">
+                          {[
+                            { label: "Normal",    count: result.findings.filter(f => f.severity === "normal").length,   color: "text-success-600 dark:text-success-400",  bg: "bg-success-50 dark:bg-success-950"  },
+                            { label: "Attention", count: result.findings.filter(f => f.severity === "warning").length,  color: "text-warning-600 dark:text-warning-400",  bg: "bg-warning-50 dark:bg-warning-950"  },
+                            { label: "Critical",  count: result.findings.filter(f => f.severity === "critical").length, color: "text-danger-600 dark:text-danger-400",    bg: "bg-danger-50 dark:bg-danger-950"    },
+                          ].map((s) => (
+                            <div key={s.label} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl", s.bg)}>
+                              <span className={cn("text-2xl font-bold", s.color)}>{s.count}</span>
+                              <span className={cn("text-sm font-medium", s.color)}>{s.label}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
+                    {/* CHARTS TAB */}
+                    {activeTab === "charts" && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                          <div className="p-5 rounded-xl border text-center bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700">
+                            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">Urgency Score</h3>
+                            <UrgencyGauge score={result.urgency_score} />
+                            <p className="text-xs text-surface-400 mt-2">
+                              {result.urgency_score <= 3 ? "All Normal" : result.urgency_score <= 6 ? "Attention Needed" : "Urgent Review"}
+                            </p>
+                          </div>
+
+                          <div className="p-5 rounded-xl border bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700">
+                            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">Findings Breakdown</h3>
+                            <FindingsDonut result={result} />
+                          </div>
+
+                          <div className="p-5 rounded-xl border bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700">
+                            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">Severity Distribution</h3>
+                            <SeverityRadialChart result={result} />
+                          </div>
+                        </div>
+
+                        <div className="p-5 rounded-xl border bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700">
+                          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-4">Individual Findings Severity</h3>
+                          <FindingsBarChart result={result} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FINDINGS TAB */}
+                    {activeTab === "findings" && (
+                      <div className="space-y-3">
+                        {result.findings.map((finding, index) => (
+                          <div
+                            key={index}
+                            className={cn("p-5 rounded-xl border", getSeverityClasses(finding.severity))}
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span>{getSeverityIcon(finding.severity)}</span>
+                                <h4 className="font-semibold">{finding.title}</h4>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {finding.value && (
+                                  <span className="text-sm font-bold">{finding.value}</span>
+                                )}
+                                <SeverityBadge severity={finding.severity} size="sm" />
+                              </div>
+                            </div>
+                            <p className="text-sm leading-relaxed opacity-90">{finding.detail}</p>
+                            {finding.reference_range && (
+                              <p className="text-xs opacity-60 mt-2">Reference range: {finding.reference_range}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* QUESTIONS TAB */}
+                    {activeTab === "questions" && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-surface-500 dark:text-surface-400 mb-4">
+                          Based on your results, here are important questions to ask your doctor.
+                        </p>
+                        {result.doctor_questions.map((question, index) => (
+                          <div
+                            key={index}
+                            className="flex gap-4 p-4 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700"
+                          >
+                            <span className="shrink-0 w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-400 text-xs font-bold flex items-center justify-center">
+                              {index + 1}
+                            </span>
+                            <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed">
+                              {question}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
